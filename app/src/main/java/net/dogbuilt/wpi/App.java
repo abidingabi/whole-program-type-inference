@@ -176,7 +176,7 @@ public class App {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        }).toList();
+        }).collect(Collectors.toSet()).stream().toList();
 
 
         /* check for overlap */
