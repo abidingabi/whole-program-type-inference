@@ -9,6 +9,7 @@
 plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     id 'application'
+    id 'org.checkerframework' version '0.6.53'
 }
 
 repositories {
@@ -16,9 +17,10 @@ repositories {
     mavenCentral()
 }
 
+
 dependencies {
     // This dependency is used by the application.
-    implementation libs.guava
+    implementation "com.github.javaparser:javaparser-symbol-solver-core:3.26.4"
 }
 
 testing {
@@ -37,6 +39,30 @@ java {
         languageVersion = JavaLanguageVersion.of(21)
     }
 }
+
+checkerFramework {
+    checkers = [
+//            'org.checkerframework.checker.calledmethods.CalledMethodsChecker',
+//            'org.checkerframework.checker.compilermsgs.CompilerMessagesChecker',
+//            'org.checkerframework.checker.fenum.FenumChecker',
+//            'org.checkerframework.checker.formatter.FormatterChecker',
+//            'org.checkerframework.checker.index.IndexChecker',
+//            'org.checkerframework.checker.interning.InterningChecker',
+//            'org.checkerframework.checker.mustcall.MustCallChecker',
+//            'org.checkerframework.checker.mustcall.MustCallNoCreatesMustCallForChecker',
+//            'org.checkerframework.checker.nonempty.NonEmptyChecker',
+//            'org.checkerframework.checker.nullness.NullnessChecker',
+//            'org.checkerframework.checker.optional.OptionalChecker',
+//            'org.checkerframework.checker.optional.OptionalImplChecker',
+//            'org.checkerframework.checker.propkey.PropertyKeyChecker',
+//            'org.checkerframework.checker.regex.RegexChecker',
+            // most useful, still slow
+            // 'org.checkerframework.checker.resourceleak.ResourceLeakChecker',
+            // 'org.checkerframework.checker.signature.SignatureChecker',
+            // 'org.checkerframework.checker.signedness.SignednessChecker',
+    ]
+}
+apply plugin: 'org.checkerframework'
 
 application {
     // Define the main class for the application.
