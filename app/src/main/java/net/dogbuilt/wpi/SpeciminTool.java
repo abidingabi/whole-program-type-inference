@@ -63,7 +63,7 @@ public final class SpeciminTool {
      * @throws IOException          If there's an error executing the command or writing the minimized file.
      * @throws InterruptedException If the process execution is interrupted.
      */
-    public static String runSpeciminTool(String root, String targetFile, String target, SpeciminTargetType type)
+    public static String runSpeciminTool(String root, String classPath, String targetFile, String target, SpeciminTargetType type)
             throws IOException, InterruptedException {
 
         /* TODO: make this not hard-coded */
@@ -80,7 +80,7 @@ public final class SpeciminTool {
         // This is a fail-safe in case Ashe#run fails to delete the temporary directory.
         tempDir.toFile().deleteOnExit();
 
-        List<String> argsWithOption = formatSpeciminArgs(tempDir.toString(), root, targetFile, target, type);
+        List<String> argsWithOption = formatSpeciminArgs(tempDir.toString(), classPath, root, targetFile, target, type);
 
         List<String> commands = prepareCommands(speciminPath, argsWithOption);
 
@@ -100,10 +100,11 @@ public final class SpeciminTool {
      * @return Formatted string of arguments.
      */
     private static List<String> formatSpeciminArgs(
-            String outputDirectory, String root, String targetFile, String target, SpeciminTargetType targetType) {
+            String outputDirectory, String classPath, String root, String targetFile, String target, SpeciminTargetType targetType) {
         return List.of(
                 "--outputDirectory", outputDirectory,
                 "--root", root,
+                "--jarPath", classPath,
                 "--targetFile", targetFile,
                 targetType == SpeciminTargetType.METHOD ? "--targetMethod" : "--targetField", target
         );

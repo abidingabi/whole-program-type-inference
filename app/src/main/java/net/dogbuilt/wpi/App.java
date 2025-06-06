@@ -94,7 +94,7 @@ public class App {
                         (a, b) -> a));
 
         /* TODO: deal with warnings not at specimin-able locations */
-        List<Optional<String>> speciminMethodOutDirs = methods.keySet().parallelStream().map(method -> {
+        List<Optional<String>> speciminMethodOutDirs = methods.keySet().stream().map(method -> {
             var warning = methods.get(method);
             // TODO: this is duplicated in specimin tool. this is bad
             var parameterTypes = method
@@ -122,6 +122,7 @@ public class App {
             try {
                 return Optional.of(SpeciminTool.runSpeciminTool(
                         src,
+                        args[1] + "/lib/",
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
                         warning.file().substring(src.length()),
                         target,
@@ -152,10 +153,12 @@ public class App {
              */
             var target = fullyQualifiedClassName.get() + "#" + field.getVariable(0).getName();
 
-            System.out.print(target);
+            System.out.println(target);
             try {
                 return Optional.of(SpeciminTool.runSpeciminTool(
                         src,
+                        args[1] + "/lib/",
+                        // TODO: this is really janky and breaks when the argument has a trailing slash.
                         warning.file().substring(src.length()),
                         target,
                         SpeciminTool.SpeciminTargetType.FIELD));
@@ -178,16 +181,29 @@ public class App {
             }
         }).collect(Collectors.toSet()).stream().toList();
 
-
         /* check for overlap */
         var conflictDeclarations = new HashSet<String>();
         var declarations = new HashSet<String>();
         /* we should probably be doing something more clever than a cartesian product... */
 
+        /* map from a specimin outputs to the set of specimin outputs that overlap with it */
+        HashMap<Set<String>, Set<Set<String>>> partitions = new HashMap<>();
         /* the number of declarations for each specimin output is the diagonal */
         System.out.println("Collision matrix");
         for (var fieldsAndMethods1 : fieldsAndMethodsForDirs) {
+            if (!partitions.containsKey(fieldsAndMethods1)) {
+                /* we cannot use Set.of because that returns an immutable set */
+                var contents = new HashSet<Set<String>>();
+                contents.add(fieldsAndMethods1);
+                partitions.put(fieldsAndMethods1, contents);
+            }
             for (var fieldsAndMethods2 : fieldsAndMethodsForDirs) {
+                if (!partitions.containsKey(fieldsAndMethods2)) {
+                    var contents = new HashSet<Set<String>>();
+                    contents.add(fieldsAndMethods2);
+                    partitions.put(fieldsAndMethods2, contents);
+                }
+
                 if (fieldsAndMethods1 == fieldsAndMethods2) {
                     System.out.print(fieldsAndMethods1.size());
                     System.out.print("\t");
@@ -199,6 +215,15 @@ public class App {
                     System.out.print(0);
                     System.out.print("\t");
                 } else {
+                    var partition1 = partitions.get(fieldsAndMethods1);
+                    var partition2 = partitions.get(fieldsAndMethods2);
+                    partition1.addAll(partition2);
+                    /*
+                     * partition 1 is now the union.
+                     * I dislike the mutable state here, but otherwise we do a bunch of needless copying.
+                     */
+                    partitions.put(fieldsAndMethods2, partition1);
+
                     conflictDeclarations.addAll(intersection);
                     System.out.print(intersection.size());
                     System.out.print("\t");
@@ -209,12 +234,17 @@ public class App {
             System.out.flush();
         }
 
+        /* note the order they are outputted here has /nothing/ to do with the order in the collision matrix */
+        var uniquePartitions = new HashSet<>(partitions.values());
+        System.out.println("Partition count");
+        System.out.println(uniquePartitions.size());
+        System.out.println("Partition sizes");
+        for (var partition : uniquePartitions) {
+            System.out.println(partition.size());
+        }
+
         System.out.println("Conflict declarations: " + conflictDeclarations.size());
         System.out.println("Total declarations: " + declarations.size());
         System.out.println("Ratio: " + ((float) conflictDeclarations.size()) / declarations.size());
-//        System.out.println("Total: " + fieldsAndMethodsForDirs.size());
-//        System.out.println("Conflicts/Total dirs: " + (float)(conflictDirs) / fieldsAndMethodsForDirs.size());
-
-
     }
 }
