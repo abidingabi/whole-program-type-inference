@@ -1,5 +1,5 @@
 /*
- taken from https://github.com/njit-jerse/ASHE_Automated-Software-Hardening-for-Entrypoints/blob/4b8db1add46c7ce0a8ea49309b7e5099fa4ff9cf/src/main/java/edu/njit/jerse/ashe/services/SpeciminTool.java,
+ modified copy of https://github.com/njit-jerse/ASHE_Automated-Software-Hardening-for-Entrypoints/blob/4b8db1add46c7ce0a8ea49309b7e5099fa4ff9cf/src/main/java/edu/njit/jerse/ashe/services/SpeciminTool.java,
  and is under the appropriate license.
  */
 

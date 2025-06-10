@@ -118,7 +118,7 @@ public class App {
 
             var target = fullyQualifiedClassName.get() + "#" + method.getName() + "(" + parameterTypes + ")";
 
-            System.out.print(target);
+            System.out.println(target);
             try {
                 return Optional.of(SpeciminTool.runSpeciminTool(
                         src,
@@ -132,7 +132,7 @@ public class App {
             }
         }).toList();
 
-        List<Optional<String>> speciminFieldOutDirs = fields.keySet().parallelStream().map(field -> {
+        List<Optional<String>> speciminFieldOutDirs = fields.keySet().stream().map(field -> {
             var warning = fields.get(field);
 
             Optional<String> fullyQualifiedClassName = null;
