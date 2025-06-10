@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # runs the checker framework for a given type system for a given source directory, returning the error lines
+# TODO: distinguish between javac and checker framework errors; bail on javac errors
 
 shopt -s globstar
 # assumes layout from njr-1

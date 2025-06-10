@@ -1,12 +1,18 @@
 package net.dogbuilt.wpi;
 
 import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.Parameter;
+import com.github.javaparser.ast.nodeTypes.NodeWithIdentifier;
+import com.github.javaparser.ast.nodeTypes.NodeWithName;
 import com.github.javaparser.ast.type.Type;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -61,6 +67,7 @@ public class App {
 
         // locations to run specimin on
         // the duplication between methods and fields here is ugly; we can do better later if needed
+        // TODO: we should also deduplicate methods/fields, so we do not run specimin in the same spot twice
         var methods = warnings
                 .stream()
                 .map(w -> {
@@ -173,78 +180,136 @@ public class App {
         for (var fieldDir : speciminFieldOutDirs)
             fieldDir.ifPresent(speciminOutDirs::add);
 
-        var fieldsAndMethodsForDirs = speciminOutDirs.stream().map(directoryPath -> {
-            try {
-                return SpeciminTool.minimizedFilesFieldsAndMethods(directoryPath);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }).collect(Collectors.toSet()).stream().toList();
+//        var fieldsAndMethodsForDirs = speciminOutDirs.stream().map(directoryPath -> {
+//            try {
+//                return SpeciminTool.minimizedFilesFieldsAndMethods(directoryPath);
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+//        }).collect(Collectors.toSet()).stream().toList();
+//
+//        /* check for overlap */
+//        var conflictDeclarations = new HashSet<String>();
+//        var declarations = new HashSet<String>();
+//        /* we should probably be doing something more clever than a cartesian product... */
+//
+//        /* map from a specimin outputs to the set of specimin outputs that overlap with it */
+//        HashMap<Set<String>, Set<Set<String>>> partitions = new HashMap<>();
+//        /* the number of declarations for each specimin output is the diagonal */
+//        System.out.println("Collision matrix");
+//        for (var fieldsAndMethods1 : fieldsAndMethodsForDirs) {
+//            if (!partitions.containsKey(fieldsAndMethods1)) {
+//                /* we cannot use Set.of because that returns an immutable set */
+//                var contents = new HashSet<Set<String>>();
+//                contents.add(fieldsAndMethods1);
+//                partitions.put(fieldsAndMethods1, contents);
+//            }
+//            for (var fieldsAndMethods2 : fieldsAndMethodsForDirs) {
+//                if (!partitions.containsKey(fieldsAndMethods2)) {
+//                    var contents = new HashSet<Set<String>>();
+//                    contents.add(fieldsAndMethods2);
+//                    partitions.put(fieldsAndMethods2, contents);
+//                }
+//
+//                if (fieldsAndMethods1 == fieldsAndMethods2) {
+//                    System.out.print(fieldsAndMethods1.size());
+//                    System.out.print("\t");
+//                    continue;
+//                }
+//                var intersection = new ArrayList<>(fieldsAndMethods1);
+//                intersection.retainAll(fieldsAndMethods2);
+//                if (intersection.isEmpty()) {
+//                    System.out.print(0);
+//                    System.out.print("\t");
+//                } else {
+//                    var partition1 = partitions.get(fieldsAndMethods1);
+//                    var partition2 = partitions.get(fieldsAndMethods2);
+//                    partition1.addAll(partition2);
+//                    /*
+//                     * partition 1 is now the union.
+//                     * I dislike the mutable state here, but otherwise we do a bunch of needless copying.
+//                     */
+//                    partitions.put(fieldsAndMethods2, partition1);
+//
+//                    conflictDeclarations.addAll(intersection);
+//                    System.out.print(intersection.size());
+//                    System.out.print("\t");
+//                }
+//            }
+//            declarations.addAll(fieldsAndMethods1);
+//            System.out.println();
+//            System.out.flush();
+//        }
+//
+//        /* note the order they are outputted here has /nothing/ to do with the order in the collision matrix */
+//        var uniquePartitions = new HashSet<>(partitions.values());
+//        System.out.println("Partition count");
+//        System.out.println(uniquePartitions.size());
+//        System.out.println("Partition sizes");
+//        for (var partition : uniquePartitions) {
+//            System.out.println(partition.size());
+//        }
+//
+//        System.out.println("Conflict declarations: " + conflictDeclarations.size());
+//        System.out.println("Total declarations: " + declarations.size());
+//        System.out.println("Ratio: " + ((float) conflictDeclarations.size()) / declarations.size());
 
-        /* check for overlap */
-        var conflictDeclarations = new HashSet<String>();
-        var declarations = new HashSet<String>();
-        /* we should probably be doing something more clever than a cartesian product... */
+        // TODO: REMOVE LINE USED FOR TESTING
+//        var speciminOutDirs = List.of("/tmp/specimin3366489888787050552");
 
-        /* map from a specimin outputs to the set of specimin outputs that overlap with it */
-        HashMap<Set<String>, Set<Set<String>>> partitions = new HashMap<>();
-        /* the number of declarations for each specimin output is the diagonal */
-        System.out.println("Collision matrix");
-        for (var fieldsAndMethods1 : fieldsAndMethodsForDirs) {
-            if (!partitions.containsKey(fieldsAndMethods1)) {
-                /* we cannot use Set.of because that returns an immutable set */
-                var contents = new HashSet<Set<String>>();
-                contents.add(fieldsAndMethods1);
-                partitions.put(fieldsAndMethods1, contents);
-            }
-            for (var fieldsAndMethods2 : fieldsAndMethodsForDirs) {
-                if (!partitions.containsKey(fieldsAndMethods2)) {
-                    var contents = new HashSet<Set<String>>();
-                    contents.add(fieldsAndMethods2);
-                    partitions.put(fieldsAndMethods2, contents);
+        var annotatedOutDirs = new ArrayList<Path>();
+
+        /* attempt to run a search algorithm on each Specimin output */
+        /* TODO: this should be embarrassingly parallel, at least per Specimin output; make it do that if slow */
+        for (var speciminOutDir : speciminOutDirs) {
+            var compilationUnits = AnnotatableLocationHelper.getCompilationUnits(speciminOutDir);
+            var annotatableLocationCount = AnnotatableLocationHelper.getLocations(compilationUnits).size();
+
+            var srcDir = Path.of(speciminOutDir);
+            /* TODO: Nullable should not be hard-coded */
+            SearchAlgorithm searchAlgorithm = new AnnotateOneLocation(annotatableLocationCount, "Nullable");
+
+            /*
+             * get the specimin output into src so we can use getWarning on it. this is kind of a hack;
+             * ideally this is not necessary
+             */
+            var temp = Files.createTempDirectory("specimin-moving-to-src");
+            Files.createSymbolicLink(temp.resolve("src"), srcDir);
+            var originalWarningCount = getWarnings(args[0], temp.toString()).size();
+            // Files.delete(temp);
+
+            System.out.println("annotatable locations: " + annotatableLocationCount);
+
+            while (!searchAlgorithm.exhausted()) {
+                var cus = compilationUnits.stream().map(CompilationUnit::clone).toList();
+                var locations = AnnotatableLocationHelper.getLocations(cus);
+                searchAlgorithm.annotate(locations);
+
+                Path tempDir = Files.createTempDirectory("specimin-annotated");
+                System.out.println(tempDir);
+
+                for (CompilationUnit cu : cus) {
+                    /* TODO: we don't need to add this to every file, just any one we have changed */
+                    /* TODO: do not hardcode the annotation */
+                    cu.addImport("org.checkerframework.checker.nullness.qual.Nullable");
+                    /* emit modified source code. we emit it under src so getWarnings works */
+                    var newPath = tempDir
+                            .resolve("src")
+                            .resolve(srcDir.relativize(cu.getStorage().get().getPath()));
+                    /* this ensures we create any necessary parent directories */
+                    Files.createDirectories(newPath.getParent());
+                    Files.write(newPath, cu.toString().getBytes());
                 }
 
-                if (fieldsAndMethods1 == fieldsAndMethods2) {
-                    System.out.print(fieldsAndMethods1.size());
-                    System.out.print("\t");
-                    continue;
-                }
-                var intersection = new ArrayList<>(fieldsAndMethods1);
-                intersection.retainAll(fieldsAndMethods2);
-                if (intersection.isEmpty()) {
-                    System.out.print(0);
-                    System.out.print("\t");
-                } else {
-                    var partition1 = partitions.get(fieldsAndMethods1);
-                    var partition2 = partitions.get(fieldsAndMethods2);
-                    partition1.addAll(partition2);
-                    /*
-                     * partition 1 is now the union.
-                     * I dislike the mutable state here, but otherwise we do a bunch of needless copying.
-                     */
-                    partitions.put(fieldsAndMethods2, partition1);
-
-                    conflictDeclarations.addAll(intersection);
-                    System.out.print(intersection.size());
-                    System.out.print("\t");
-                }
+                /*
+                 * NOTE: if the number of warnings is zero, we can probably? stop early.
+                 * we might want to keep track of all ideal situations for merging later though
+                 */
+                System.out.println(speciminOutDir
+                        + " -> " + tempDir
+                        + " warning count: original: " + originalWarningCount
+                        + " new: " + getWarnings(args[0], tempDir.toString()).size());
             }
-            declarations.addAll(fieldsAndMethods1);
-            System.out.println();
-            System.out.flush();
         }
-
-        /* note the order they are outputted here has /nothing/ to do with the order in the collision matrix */
-        var uniquePartitions = new HashSet<>(partitions.values());
-        System.out.println("Partition count");
-        System.out.println(uniquePartitions.size());
-        System.out.println("Partition sizes");
-        for (var partition : uniquePartitions) {
-            System.out.println(partition.size());
-        }
-
-        System.out.println("Conflict declarations: " + conflictDeclarations.size());
-        System.out.println("Total declarations: " + declarations.size());
-        System.out.println("Ratio: " + ((float) conflictDeclarations.size()) / declarations.size());
     }
 }
