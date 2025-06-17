@@ -47,7 +47,7 @@ public final class SpeciminTool {
         throw new AssertionError("Cannot instantiate SpeciminTool");
     }
 
-    enum SpeciminTargetType {
+    public enum SpeciminTargetType {
         METHOD,
         FIELD
     }
@@ -59,11 +59,11 @@ public final class SpeciminTool {
      * @param targetFile File to be targeted by the tool.
      * @param target     field/method to be targeted by the tool.
      * @param type       whether we are targeting a field or method.
-     * @return The directory path where the minimized file is saved.
+     * @param dst       where to store output
      * @throws IOException          If there's an error executing the command or writing the minimized file.
      * @throws InterruptedException If the process execution is interrupted.
      */
-    public static String runSpeciminTool(String root, String classPath, String targetFile, String target, SpeciminTargetType type)
+    public static void runSpeciminTool(Path root, Path classPath, Path targetFile, String target, SpeciminTargetType type, Path dst)
             throws IOException, InterruptedException {
 
         /* TODO: make this not hard-coded */
@@ -71,7 +71,7 @@ public final class SpeciminTool {
 
         Path tempDir;
         try {
-            tempDir = Files.createTempDirectory("specimin");
+            tempDir = Files.createTempDirectory(dst, "specimin");
         } catch (IOException e) {
             String errorMessage = "Failed to create temporary directory";
             throw new IOException(errorMessage, e);
@@ -80,13 +80,11 @@ public final class SpeciminTool {
         // This is a fail-safe in case Ashe#run fails to delete the temporary directory.
         tempDir.toFile().deleteOnExit();
 
-        List<String> argsWithOption = formatSpeciminArgs(tempDir.toString(), classPath, root, targetFile, target, type);
+        List<String> argsWithOption = formatSpeciminArgs(tempDir, classPath, root, targetFile, target, type);
 
         List<String> commands = prepareCommands(speciminPath, argsWithOption);
 
         startSpeciminProcess(commands, speciminPath);
-
-        return tempDir.toString();
     }
 
     /**
@@ -100,12 +98,12 @@ public final class SpeciminTool {
      * @return Formatted string of arguments.
      */
     private static List<String> formatSpeciminArgs(
-            String outputDirectory, String classPath, String root, String targetFile, String target, SpeciminTargetType targetType) {
+            Path outputDirectory, Path classPath, Path root, Path targetFile, String target, SpeciminTargetType targetType) {
         return List.of(
-                "--outputDirectory", outputDirectory,
-                "--root", root,
-                "--jarPath", classPath,
-                "--targetFile", targetFile,
+                "--outputDirectory", outputDirectory.toString(),
+                "--root", root.toString(),
+                "--jarPath", classPath.toString(),
+                "--targetFile", targetFile.toString(),
                 targetType == SpeciminTargetType.METHOD ? "--targetMethod" : "--targetField", target
         );
     }
@@ -141,6 +139,7 @@ public final class SpeciminTool {
      */
     private static void startSpeciminProcess(List<String> commands, String speciminPath)
             throws IOException, InterruptedException {
+        System.out.println(commands.stream().collect(Collectors.joining(" ")));
         ProcessBuilder builder = new ProcessBuilder(commands);
         builder.redirectErrorStream(true);
         builder.directory(new File(speciminPath));
@@ -155,122 +154,6 @@ public final class SpeciminTool {
 
         logProcessOutput(process);
         finalizeProcess(process);
-    }
-
-    /**
-     * Attempts to compile all Java files in the directory specified by the path.
-     *
-     * @param directoryPath the path to the directory containing minimized Java file(s) as a {@code
-     *                      String}
-     * @return true if all files were compiled successfully, false otherwise
-     * @throws IOException          if there's an error executing the command or reading the output
-     * @throws InterruptedException if the process execution is interrupted
-     */
-    public static boolean compileMinimizedFiles(String directoryPath)
-            throws IOException, InterruptedException {
-
-        Path dir = Paths.get(directoryPath);
-        if (!Files.exists(dir)) {
-            return false;
-        }
-        if (!Files.isDirectory(dir)) {
-            return false;
-        }
-
-        List<File> javaFiles = findAllJavaFilesInMinimizedDir(dir);
-        if (javaFiles.isEmpty()) {
-            return false;
-        }
-
-        List<String> command = new ArrayList<>();
-        /* TODO: make this not hardcoded */
-        command.add("/home/abi/school/kellogg-research/checker-framework-3.49.1/checker/bin/javac");
-
-        StringBuilder commandLog = new StringBuilder();
-        commandLog.append("Compiling Java files:").append(System.lineSeparator());
-        commandLog.append("javac");
-
-        for (File javaFile : javaFiles) {
-            command.add(javaFile.getPath());
-            commandLog.append(" ").append(javaFile.getPath());
-        }
-
-        ProcessBuilder builder = new ProcessBuilder(command);
-        builder.redirectErrorStream(true);
-        Process process = builder.start();
-        logProcessOutput(process);
-
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            return false;
-        }
-
-        finalizeProcess(process);
-
-        return true;
-    }
-
-    /**
-     * Attempts to compile all Java files in the directory specified by the path.
-     * * @param directoryPath the path to the directory containing minimized Java file(s) as a {@code String}
-     *
-     * @return set of fully-qualified fields/methods
-     * @throws IOException if there's an error executing the command or reading the output
-     */
-    public static Set<String> minimizedFilesFieldsAndMethods(String directoryPath)
-            throws IOException {
-        /* TODO: this has nothing to do with the directory being minimized; this should not be here */
-        Path dir = Paths.get(directoryPath);
-        if (!Files.exists(dir)) {
-            return Collections.emptySet();
-        }
-        if (!Files.isDirectory(dir)) {
-            return Collections.emptySet();
-        }
-
-        List<File> javaFiles = findAllJavaFilesInMinimizedDir(dir);
-
-        var output = new HashSet<String>();
-        for (File javaFile : javaFiles) {
-            var cu = StaticJavaParser.parse(javaFile);
-
-            var methods = cu.findAll(MethodDeclaration.class);
-            for (var method : methods) {
-                Optional<ClassOrInterfaceDeclaration> enclosing =
-                        method.findAncestor(ClassOrInterfaceDeclaration.class);
-
-                if (enclosing.isEmpty())
-                    continue;
-
-                var fullyQualifiedClassName = enclosing.get().getFullyQualifiedName();
-                if (fullyQualifiedClassName.isEmpty())
-                    continue;
-
-                var parameterTypes = method
-                        .getParameters()
-                        .stream()
-                        .map(p -> p.getTypeAsString() + (p.isVarArgs() ? "..." : ""))
-                        .collect(Collectors.joining(", "));
-                output.add(fullyQualifiedClassName.get() + "#" + method.getName() + "(" + parameterTypes + ")");
-            }
-
-            var fields = cu.findAll(FieldDeclaration.class);
-            for (var field : fields) {
-                Optional<ClassOrInterfaceDeclaration> enclosing =
-                        field.findAncestor(ClassOrInterfaceDeclaration.class);
-
-                if (enclosing.isEmpty())
-                    continue;
-
-                var fullyQualifiedClassName = enclosing.get().getFullyQualifiedName();
-                if (fullyQualifiedClassName.isEmpty())
-                    continue;
-
-                output.add(fullyQualifiedClassName.get() + "#" + field.getVariable(0).getName());
-            }
-        }
-
-        return output;
     }
 
     /**

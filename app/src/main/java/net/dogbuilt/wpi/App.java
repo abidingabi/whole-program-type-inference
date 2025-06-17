@@ -21,9 +21,8 @@ public class App {
         return "Hello World!";
     }
 
-    private static List<Warning> getWarnings(String checker, String path) {
-
-        String[] errorLines = {"/home/abi/school/kellogg-research/whole-program-type-inference/get-error-lines.sh", checker, path};
+    private static List<Warning> getWarnings(String checker, Path path) {
+        String[] errorLines = {"/home/abi/school/kellogg-research/whole-program-type-inference/get-error-lines.sh", checker, path.toString()};
         ProcessBuilder errorLinesPB = new ProcessBuilder(errorLines);
 
         var warnings = new ArrayList<Warning>();
@@ -37,7 +36,7 @@ public class App {
             while ((line = reader.readLine()) != null) {
                 var sections = line.split("\t");
                 if (sections.length == 2) {
-                    Warning w = new Warning(sections[0], Integer.parseInt(sections[1]));
+                    Warning w = new Warning(Path.of(sections[0]), Integer.parseInt(sections[1]));
                     warnings.add(w);
                 }
             }
@@ -53,16 +52,11 @@ public class App {
         return warnings;
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        if (args.length < 2) {
-            System.out.println("two arguments expected: checker, project directory");
-            return;
-        }
-
-        var src = args[1] + "/src/";
+    private static void specimin(String checker, Path projectDirectory, Path dst) {
+        var src = projectDirectory.resolve("src/");
 
         /* to check the warnings, we care about the lib directory; hence us not using src */
-        var warnings = getWarnings(args[0], args[1]);
+        var warnings = getWarnings(checker, projectDirectory);
         System.out.println(warnings.size());
 
         // locations to run specimin on
@@ -81,7 +75,7 @@ public class App {
                 .collect(Collectors.toMap(
                         AbstractMap.SimpleEntry::getKey,
                         AbstractMap.SimpleEntry::getValue,
-                        /* since specimin is fairly coarse, we can ignore multiple warnings in the same field */
+                        /* since specimin is fairly coarse, we can ignore multiple warnings in the same method */
                         (a, b) -> a));
 
         var fields = warnings
@@ -101,7 +95,7 @@ public class App {
                         (a, b) -> a));
 
         /* TODO: deal with warnings not at specimin-able locations */
-        List<Optional<String>> speciminMethodOutDirs = methods.keySet().stream().map(method -> {
+        methods.keySet().forEach(method -> {
             var warning = methods.get(method);
             // TODO: this is duplicated in specimin tool. this is bad
             var parameterTypes = method
@@ -120,29 +114,30 @@ public class App {
             if (fullyQualifiedClassName.isEmpty()) {
                 System.out.println(warning);
                 System.out.println("Could not find FQCN?");
-                return Optional.<String>empty();
+                return;
             }
 
             var target = fullyQualifiedClassName.get() + "#" + method.getName() + "(" + parameterTypes + ")";
 
             System.out.println(target);
             try {
-                return Optional.of(SpeciminTool.runSpeciminTool(
+                SpeciminTool.runSpeciminTool(
                         src,
-                        args[1] + "/lib/",
+                        projectDirectory.resolve("lib/"),
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
-                        warning.file().substring(src.length()),
+                        src.relativize(warning.file()),
                         target,
-                        SpeciminTool.SpeciminTargetType.METHOD));
+                        SpeciminTool.SpeciminTargetType.METHOD,
+                        dst);
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        }).toList();
+        });
 
-        List<Optional<String>> speciminFieldOutDirs = fields.keySet().stream().map(field -> {
+        fields.keySet().forEach(field -> {
             var warning = fields.get(field);
 
-            Optional<String> fullyQualifiedClassName = null;
+            Optional<String> fullyQualifiedClassName;
             try {
                 fullyQualifiedClassName = warning.getFullyQualifiedClassName();
             } catch (FileNotFoundException e) {
@@ -152,7 +147,7 @@ public class App {
             if (fullyQualifiedClassName.isEmpty()) {
                 System.out.println(warning);
                 System.out.println("Could not find FQCN?");
-                return Optional.<String>empty();
+                return;
             }
 
             /* TODO: we make an assumption here that the warning is on the initializer for the first variable in a
@@ -162,24 +157,21 @@ public class App {
 
             System.out.println(target);
             try {
-                return Optional.of(SpeciminTool.runSpeciminTool(
+                SpeciminTool.runSpeciminTool(
                         src,
-                        args[1] + "/lib/",
+                        projectDirectory.resolve("lib/"),
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
-                        warning.file().substring(src.length()),
+                        warning.file().relativize(src),
                         target,
-                        SpeciminTool.SpeciminTargetType.FIELD));
+                        SpeciminTool.SpeciminTargetType.FIELD,
+                        dst);
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        }).toList();
+        });
+    }
 
-        var speciminOutDirs = new ArrayList<String>();
-        for (var methodDir : speciminMethodOutDirs)
-            methodDir.ifPresent(speciminOutDirs::add);
-        for (var fieldDir : speciminFieldOutDirs)
-            fieldDir.ifPresent(speciminOutDirs::add);
-
+//    private static void analyzeSpeciminOutput() {
 //        var fieldsAndMethodsForDirs = speciminOutDirs.stream().map(directoryPath -> {
 //            try {
 //                return SpeciminTool.minimizedFilesFieldsAndMethods(directoryPath);
@@ -253,19 +245,15 @@ public class App {
 //        System.out.println("Conflict declarations: " + conflictDeclarations.size());
 //        System.out.println("Total declarations: " + declarations.size());
 //        System.out.println("Ratio: " + ((float) conflictDeclarations.size()) / declarations.size());
+//    }
 
-        // TODO: REMOVE LINE USED FOR TESTING
-//        var speciminOutDirs = List.of("/tmp/specimin3366489888787050552");
-
-        var annotatedOutDirs = new ArrayList<Path>();
-
+    private static void localAnnotate(String checker, Path speciminOutputsDir, Path dst) throws IOException {
         /* attempt to run a search algorithm on each Specimin output */
         /* TODO: this should be embarrassingly parallel, at least per Specimin output; make it do that if slow */
-        for (var speciminOutDir : speciminOutDirs) {
+        for (var speciminOutDir : Files.list(speciminOutputsDir).toList()) {
             var compilationUnits = AnnotatableLocationHelper.getCompilationUnits(speciminOutDir);
             var annotatableLocationCount = AnnotatableLocationHelper.getLocations(compilationUnits).size();
 
-            var srcDir = Path.of(speciminOutDir);
             /* TODO: Nullable should not be hard-coded */
             SearchAlgorithm searchAlgorithm = new AnnotateOneLocation(annotatableLocationCount, "Nullable");
 
@@ -273,10 +261,9 @@ public class App {
              * get the specimin output into src so we can use getWarning on it. this is kind of a hack;
              * ideally this is not necessary
              */
-            var temp = Files.createTempDirectory("specimin-moving-to-src");
-            Files.createSymbolicLink(temp.resolve("src"), srcDir);
-            var originalWarningCount = getWarnings(args[0], temp.toString()).size();
-            // Files.delete(temp);
+            var temp = Files.createTempDirectory(dst, "specimin-moving-to-src");
+            Files.createSymbolicLink(temp.resolve("src"), speciminOutDir);
+            var originalWarningCount = getWarnings(checker, temp).size();
 
             System.out.println("annotatable locations: " + annotatableLocationCount);
 
@@ -285,7 +272,7 @@ public class App {
                 var locations = AnnotatableLocationHelper.getLocations(cus);
                 searchAlgorithm.annotate(locations);
 
-                Path tempDir = Files.createTempDirectory("specimin-annotated");
+                Path tempDir = Files.createTempDirectory(dst, "specimin-annotated");
                 System.out.println(tempDir);
 
                 for (CompilationUnit cu : cus) {
@@ -295,7 +282,7 @@ public class App {
                     /* emit modified source code. we emit it under src so getWarnings works */
                     var newPath = tempDir
                             .resolve("src")
-                            .resolve(srcDir.relativize(cu.getStorage().get().getPath()));
+                            .resolve(speciminOutDir.relativize(cu.getStorage().get().getPath()));
                     /* this ensures we create any necessary parent directories */
                     Files.createDirectories(newPath.getParent());
                     Files.write(newPath, cu.toString().getBytes());
@@ -308,7 +295,30 @@ public class App {
                 System.out.println(speciminOutDir
                         + " -> " + tempDir
                         + " warning count: original: " + originalWarningCount
-                        + " new: " + getWarnings(args[0], tempDir.toString()).size());
+                        + " new: " + getWarnings(checker, tempDir).size());
+            }
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            System.out.println("Subcommand must be specified");
+            return;
+        }
+
+        if (args[0].equals("specimin")) {
+            if (args.length == 4) {
+                specimin(args[1], Path.of(args[2]), Path.of(args[3]));
+            } else {
+                System.out.println("three arguments expected for specimin subcommand: checker, project directory, out directory");
+            }
+        }
+
+        if (args[0].equals("localannotate")) {
+            if (args.length == 4) {
+                localAnnotate(args[1], Path.of(args[2]), Path.of(args[3]));
+            } else {
+                System.out.println("three arguments expected for localannotate subcommand: checker, directory containing specimin outputs");
             }
         }
     }

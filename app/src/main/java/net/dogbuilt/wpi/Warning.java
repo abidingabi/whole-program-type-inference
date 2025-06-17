@@ -7,14 +7,14 @@ import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 
-import java.io.File;
 import java.io.FileNotFoundException;
+import java.nio.file.Path;
 import java.util.Optional;
 
-public record Warning(String file, int line) {
+public record Warning(Path file, int line) {
     /* TODO: this is almost certainly the wrong place for this */
     Optional<MethodDeclaration> getEnclosingMethod() throws FileNotFoundException {
-        return StaticJavaParser.parse(new File(file))
+        return StaticJavaParser.parse(file.toFile())
                 .findAll(MethodDeclaration.class)
                 .stream()
                 .filter(declaration -> declaration.getBegin().map(b -> b.line <= line).orElse(false))
@@ -23,7 +23,7 @@ public record Warning(String file, int line) {
     }
 
     Optional<FieldDeclaration> getEnclosingField() throws FileNotFoundException {
-        return StaticJavaParser.parse(new File(file)).
+        return StaticJavaParser.parse(file.toFile()).
                 findAll(FieldDeclaration.class)
                 .stream()
                 .filter(declaration -> declaration.getBegin().map(b -> b.line <= line).orElse(false))
@@ -33,7 +33,7 @@ public record Warning(String file, int line) {
 
     /* TODO: this is needlessly slow.... */
     Optional<String> getFullyQualifiedClassName() throws FileNotFoundException {
-        var packageDeclaration = StaticJavaParser.parse(new File(file)).getPackageDeclaration();
+        var packageDeclaration = StaticJavaParser.parse(file.toFile()).getPackageDeclaration();
         if (packageDeclaration.isEmpty())
             return Optional.empty();
 

@@ -1,6 +1,5 @@
 package net.dogbuilt.wpi;
 
-import com.github.javaparser.JavaParser;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.Node;
@@ -8,13 +7,12 @@ import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
-import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.TypeParameter;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,9 +64,9 @@ public class AnnotatableLocationHelper {
         return annotatableLocations;
     }
 
-    static List<CompilationUnit> getCompilationUnits(String baseDirectory) throws IOException {
+    static List<CompilationUnit> getCompilationUnits(Path baseDirectory) throws IOException {
         var paths = Files
-                .walk(Paths.get(baseDirectory))
+                .walk(baseDirectory)
                 .filter(Files::isRegularFile)
                 .toList();
         var results = new ArrayList<CompilationUnit>();
