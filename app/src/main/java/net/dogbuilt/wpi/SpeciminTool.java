@@ -125,7 +125,6 @@ public final class SpeciminTool {
         commands.add("-jar");
         commands.add(speciminPath + "/build/libs/specimin.jar");
         commands.addAll(argsWithOption);
-
         return commands;
     }
 
@@ -291,4 +290,3 @@ public final class SpeciminTool {
         return javaFiles;
     }
 }
-

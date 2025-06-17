@@ -14,9 +14,9 @@ public class App {
         return "Hello World!";
     }
 
-    private static List<Warning> getWarnings(Path getErrorLinesPath, String checker, String path) {
+    private static List<Warning> getWarnings(Path getErrorLinesPath, String checker, Path path) {
 
-        String[] errorLines = {getErrorLinesPath.toString(), checker, path};
+        String[] errorLines = {getErrorLinesPath.toString(), checker, path.toString()};
         ProcessBuilder errorLinesPB = new ProcessBuilder(errorLines);
 
         var warnings = new ArrayList<Warning>();
@@ -30,7 +30,7 @@ public class App {
             while ((line = reader.readLine()) != null) {
                 var sections = line.split("\t");
                 if (sections.length == 2) {
-                    Warning w = new Warning(sections[0], Integer.parseInt(sections[1]));
+                    Warning w = new Warning(Path.of(sections[0]), Integer.parseInt(sections[1]));
                     warnings.add(w);
                 }
             }
@@ -46,29 +46,11 @@ public class App {
         return warnings;
     }
 
-    private static Path readEnvironmentVariable(String name) {
-        var pathString = System.getenv(name);
-        if (pathString == null) {
-            throw new RuntimeException(name + " environment variable must be set.");
-        }
-        return Path.of(pathString);
-    }
-
-    public static void main(String[] args) throws IOException, InterruptedException {
-        if (args.length < 2) {
-            System.out.println("two arguments expected: checker, project directory");
-            return;
-        }
-
-        var javaHome = readEnvironmentVariable("JAVA_HOME");
-        var javaPath = javaHome.resolve("bin/java");
-        var speciminPath = readEnvironmentVariable("SPECIMIN");
-        var getErrorLinesPath = Path.of("../../get-error-lines.sh");
-
-        var src = args[1] + "/src/";
+    private static void specimin(Path javaPath, Path speciminPath, Path getErrorLinesPath, String checker, Path projectDirectory, Path dst) {
+        var src = projectDirectory.resolve("src/");
 
         /* to check the warnings, we care about the lib directory; hence us not using src */
-        var warnings = getWarnings(getErrorLinesPath, args[0], args[1]);
+        var warnings = getWarnings(getErrorLinesPath, checker, projectDirectory);
         System.out.println(warnings.size());
 
         // locations to run specimin on
@@ -142,10 +124,10 @@ public class App {
                 return SpeciminTool.runSpeciminTool(
                         javaPath,
                         speciminPath,
-                        src,
-                        args[1] + "/lib/",
+                        src.toString(),
+                        projectDirectory.resolve("lib/").toString(),
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
-                        warning.file().substring(src.length()),
+                        warning.file().relativize(src).toString(),
                         target,
                         SpeciminTool.SpeciminTargetType.METHOD);
             } catch (IOException | InterruptedException e) {
@@ -153,7 +135,7 @@ public class App {
             }
         }).toList();
 
-        List<@Nullable String> speciminFieldOutDirs = fields.keySet().stream().map(field -> {
+        List<String> speciminFieldOutDirs = fields.keySet().stream().map(field -> {
             var warning = fields.get(field);
 
             String fullyQualifiedClassName;
@@ -179,113 +161,28 @@ public class App {
                 return SpeciminTool.runSpeciminTool(
                         javaPath,
                         speciminPath,
-                        src,
-                        args[1] + "/lib/",
+                        src.toString(),
+                        projectDirectory.resolve("lib/").toString(),
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
-                        warning.file().substring(src.length()),
+                        warning.file().relativize(src).toString(),
                         target,
-                        SpeciminTool.SpeciminTargetType.FIELD);
+                        SpeciminTool.SpeciminTargetType.FIELD
+                        );
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        }).toList();
+        });
+    }
 
-        var speciminOutDirs = new ArrayList<String>();
-        for (var methodDir : speciminMethodOutDirs) {
-            if (methodDir != null)
-                speciminOutDirs.add(methodDir);
-        }
-        for (var fieldDir : speciminFieldOutDirs) {
-            if (fieldDir != null)
-                speciminOutDirs.add(fieldDir);
-        }
-
-//        var fieldsAndMethodsForDirs = speciminOutDirs.stream().map(directoryPath -> {
-//            try {
-//                return SpeciminTool.minimizedFilesFieldsAndMethods(directoryPath);
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
-//        }).collect(Collectors.toSet()).stream().toList();
-//
-//        /* check for overlap */
-//        var conflictDeclarations = new HashSet<String>();
-//        var declarations = new HashSet<String>();
-//        /* we should probably be doing something more clever than a cartesian product... */
-//
-//        /* map from a specimin outputs to the set of specimin outputs that overlap with it */
-//        HashMap<Set<String>, Set<Set<String>>> partitions = new HashMap<>();
-//        /* the number of declarations for each specimin output is the diagonal */
-//        System.out.println("Collision matrix");
-//        for (var fieldsAndMethods1 : fieldsAndMethodsForDirs) {
-//            if (!partitions.containsKey(fieldsAndMethods1)) {
-//                /* we cannot use Set.of because that returns an immutable set */
-//                var contents = new HashSet<Set<String>>();
-//                contents.add(fieldsAndMethods1);
-//                partitions.put(fieldsAndMethods1, contents);
-//            }
-//            for (var fieldsAndMethods2 : fieldsAndMethodsForDirs) {
-//                if (!partitions.containsKey(fieldsAndMethods2)) {
-//                    var contents = new HashSet<Set<String>>();
-//                    contents.add(fieldsAndMethods2);
-//                    partitions.put(fieldsAndMethods2, contents);
-//                }
-//
-//                if (fieldsAndMethods1 == fieldsAndMethods2) {
-//                    System.out.print(fieldsAndMethods1.size());
-//                    System.out.print("\t");
-//                    continue;
-//                }
-//                var intersection = new ArrayList<>(fieldsAndMethods1);
-//                intersection.retainAll(fieldsAndMethods2);
-//                if (intersection.isEmpty()) {
-//                    System.out.print(0);
-//                    System.out.print("\t");
-//                } else {
-//                    var partition1 = partitions.get(fieldsAndMethods1);
-//                    var partition2 = partitions.get(fieldsAndMethods2);
-//                    partition1.addAll(partition2);
-//                    /*
-//                     * partition 1 is now the union.
-//                     * I dislike the mutable state here, but otherwise we do a bunch of needless copying.
-//                     */
-//                    partitions.put(fieldsAndMethods2, partition1);
-//
-//                    conflictDeclarations.addAll(intersection);
-//                    System.out.print(intersection.size());
-//                    System.out.print("\t");
-//                }
-//            }
-//            declarations.addAll(fieldsAndMethods1);
-//            System.out.println();
-//            System.out.flush();
-//        }
-//
-//        /* note the order they are outputted here has /nothing/ to do with the order in the collision matrix */
-//        var uniquePartitions = new HashSet<>(partitions.values());
-//        System.out.println("Partition count");
-//        System.out.println(uniquePartitions.size());
-//        System.out.println("Partition sizes");
-//        for (var partition : uniquePartitions) {
-//            System.out.println(partition.size());
-//        }
-//
-//        System.out.println("Conflict declarations: " + conflictDeclarations.size());
-//        System.out.println("Total declarations: " + declarations.size());
-//        System.out.println("Ratio: " + ((float) conflictDeclarations.size()) / declarations.size());
-
-        // TODO: REMOVE LINE USED FOR TESTING
-//        var speciminOutDirs = List.of("/tmp/specimin3366489888787050552");
-
-        var annotatedOutDirs = new ArrayList<Path>();
-
+    private static void localAnnotate(Path getErrorLinesPath,
+                                      String checker, Path speciminOutputsDir, Path dst) throws IOException {
         /* attempt to run a search algorithm on each Specimin output */
         /* TODO: this should be embarrassingly parallel, at least per Specimin output; make it do that if slow */
-        for (var speciminOutDir : speciminOutDirs) {
+        for (var speciminOutDir : Files.list(speciminOutputsDir).toList()) {
             var compilationUnits = AnnotatableLocationHelper.getCompilationUnits(speciminOutDir);
             var annotatableLocationCount = AnnotatableLocationHelper.getLocations(compilationUnits).size();
 
-            var srcDir = Path.of(speciminOutDir);
+            var srcDir = speciminOutDir;
             /* TODO: Nullable should not be hard-coded */
             SearchAlgorithm searchAlgorithm = new AnnotateOneLocation(annotatableLocationCount, "Nullable");
 
@@ -293,10 +190,9 @@ public class App {
              * get the specimin output into src so we can use getWarning on it. this is kind of a hack;
              * ideally this is not necessary
              */
-            var temp = Files.createTempDirectory("specimin-moving-to-src");
-            Files.createSymbolicLink(temp.resolve("src"), srcDir);
-            var originalWarningCount = getWarnings(args[0], temp.toString()).size();
-            // Files.delete(temp);
+            var temp = Files.createTempDirectory(dst, "specimin-moving-to-src");
+            Files.createSymbolicLink(temp.resolve("src"), speciminOutDir);
+            var originalWarningCount = getWarnings(getErrorLinesPath, checker, temp).size();
 
             System.out.println("annotatable locations: " + annotatableLocationCount);
 
@@ -305,7 +201,7 @@ public class App {
                 var locations = AnnotatableLocationHelper.getLocations(cus);
                 searchAlgorithm.annotate(locations);
 
-                Path tempDir = Files.createTempDirectory("specimin-annotated");
+                Path tempDir = Files.createTempDirectory(dst, "specimin-annotated");
                 System.out.println(tempDir);
 
                 for (CompilationUnit cu : cus) {
@@ -315,7 +211,7 @@ public class App {
                     /* emit modified source code. we emit it under src so getWarnings works */
                     var newPath = tempDir
                             .resolve("src")
-                            .resolve(srcDir.relativize(cu.getStorage().get().getPath()));
+                            .resolve(speciminOutDir.relativize(cu.getStorage().get().getPath()));
                     /* this ensures we create any necessary parent directories */
                     Files.createDirectories(newPath.getParent());
                     Files.write(newPath, cu.toString().getBytes());
@@ -328,7 +224,43 @@ public class App {
                 System.out.println(speciminOutDir
                         + " -> " + tempDir
                         + " warning count: original: " + originalWarningCount
-                        + " new: " + getWarnings(getErrorLinesPath, args[0], tempDir.toString()).size());
+                        + " new: " + getWarnings(getErrorLinesPath, checker, tempDir).size());
+            }
+        }
+    }
+
+    private static Path readEnvironmentVariable(String name) {
+        var pathString = System.getenv(name);
+        if (pathString == null) {
+            throw new RuntimeException(name + " environment variable must be set.");
+        }
+        return Path.of(pathString);
+    }
+
+    public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            System.out.println("Subcommand must be specified");
+            return;
+        }
+
+        var javaHome = readEnvironmentVariable("JAVA_HOME");
+        var javaPath = javaHome.resolve("bin/java");
+        var speciminPath = readEnvironmentVariable("SPECIMIN");
+        var getErrorLinesPath = Path.of("../../get-error-lines.sh");
+
+        if (args[0].equals("specimin")) {
+            if (args.length == 4) {
+                specimin(javaPath, speciminPath, getErrorLinesPath, args[1], Path.of(args[2]), Path.of(args[3]));
+            } else {
+                System.out.println("three arguments expected for specimin subcommand: checker, project directory, out directory");
+            }
+        }
+
+        if (args[0].equals("localannotate")) {
+            if (args.length == 4) {
+                localAnnotate(speciminPath, args[1], Path.of(args[2]), Path.of(args[3]));
+            } else {
+                System.out.println("three arguments expected for localannotate subcommand: checker, directory containing specimin outputs");
             }
         }
     }

@@ -10,11 +10,12 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.nio.file.Path;
 
-public record Warning(String file, int line) {
+public record Warning(Path file, int line) {
     /* TODO: this is almost certainly the wrong place for this */
     @Nullable MethodDeclaration getEnclosingMethod() throws FileNotFoundException {
-        return StaticJavaParser.parse(new File(file))
+        return StaticJavaParser.parse(file.toFile())
                 .findAll(MethodDeclaration.class)
                 .stream()
                 .filter(declaration -> declaration.getBegin().map(b -> b.line <= line).orElse(false))
@@ -24,7 +25,7 @@ public record Warning(String file, int line) {
     }
 
     @Nullable FieldDeclaration getEnclosingField() throws FileNotFoundException {
-        return StaticJavaParser.parse(new File(file)).
+        return StaticJavaParser.parse(file.toFile()).
                 findAll(FieldDeclaration.class)
                 .stream()
                 .filter(declaration -> declaration.getBegin().map(b -> b.line <= line).orElse(false))
@@ -35,7 +36,7 @@ public record Warning(String file, int line) {
 
     /* TODO: this is needlessly slow.... */
     @Nullable String getFullyQualifiedClassName() throws FileNotFoundException {
-        var packageDeclaration = StaticJavaParser.parse(new File(file)).getPackageDeclaration();
+        var packageDeclaration = StaticJavaParser.parse(file.toFile()).getPackageDeclaration();
         if (packageDeclaration.isEmpty())
             return null;
 
