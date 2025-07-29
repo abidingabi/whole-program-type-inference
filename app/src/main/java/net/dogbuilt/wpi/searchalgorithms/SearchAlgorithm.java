@@ -1,4 +1,4 @@
-package net.dogbuilt.wpi;
+package net.dogbuilt.wpi.searchalgorithms;
 
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;

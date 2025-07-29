@@ -1,14 +1,9 @@
 package net.dogbuilt.wpi;
 
-import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.Node;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.FieldDeclaration;
-import com.github.javaparser.ast.body.Parameter;
-import com.github.javaparser.ast.nodeTypes.NodeWithIdentifier;
-import com.github.javaparser.ast.nodeTypes.NodeWithName;
-import com.github.javaparser.ast.type.Type;
+import net.dogbuilt.wpi.searchalgorithms.AnnotateOneLocation;
+import net.dogbuilt.wpi.searchalgorithms.BreadthFirstSearch;
+import net.dogbuilt.wpi.searchalgorithms.SearchAlgorithm;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -256,8 +251,9 @@ public class App {
                 var annotatableLocationCount = AnnotatableLocationHelper.getLocations(compilationUnits).size();
 
                 /* TODO: Nullable should not be hard-coded */
-                SearchAlgorithm searchAlgorithm = new AnnotateOneLocation(annotatableLocationCount, "Nullable");
-
+                SearchAlgorithm searchAlgorithm =
+                        //new AnnotateOneLocation(annotatableLocationCount, "Nullable");
+                        new BreadthFirstSearch(2, "Nullable");
                 /*
                  * get the specimin output into src so we can use getWarning on it. this is kind of a hack;
                  * ideally this is not necessary
