@@ -250,52 +250,59 @@ public class App {
     private static void localAnnotate(String checker, Path speciminOutputsDir, Path dst) throws IOException {
         /* attempt to run a search algorithm on each Specimin output */
         /* TODO: this should be embarrassingly parallel, at least per Specimin output; make it do that if slow */
-        for (var speciminOutDir : Files.list(speciminOutputsDir).toList()) {
-            var compilationUnits = AnnotatableLocationHelper.getCompilationUnits(speciminOutDir);
-            var annotatableLocationCount = AnnotatableLocationHelper.getLocations(compilationUnits).size();
+        try (var speciminOutDirs = Files.list(speciminOutputsDir)) {
+            for (var speciminOutDir : speciminOutDirs.toList()) {
+                var compilationUnits = AnnotatableLocationHelper.getCompilationUnits(speciminOutDir);
+                var annotatableLocationCount = AnnotatableLocationHelper.getLocations(compilationUnits).size();
 
-            /* TODO: Nullable should not be hard-coded */
-            SearchAlgorithm searchAlgorithm = new AnnotateOneLocation(annotatableLocationCount, "Nullable");
-
-            /*
-             * get the specimin output into src so we can use getWarning on it. this is kind of a hack;
-             * ideally this is not necessary
-             */
-            var temp = Files.createTempDirectory(dst, "specimin-moving-to-src");
-            Files.createSymbolicLink(temp.resolve("src"), speciminOutDir);
-            var originalWarningCount = getWarnings(checker, temp).size();
-
-            System.out.println("annotatable locations: " + annotatableLocationCount);
-
-            while (!searchAlgorithm.exhausted()) {
-                var cus = compilationUnits.stream().map(CompilationUnit::clone).toList();
-                var locations = AnnotatableLocationHelper.getLocations(cus);
-                searchAlgorithm.annotate(locations);
-
-                Path tempDir = Files.createTempDirectory(dst, "specimin-annotated");
-                System.out.println(tempDir);
-
-                for (CompilationUnit cu : cus) {
-                    /* TODO: we don't need to add this to every file, just any one we have changed */
-                    /* TODO: do not hardcode the annotation */
-                    cu.addImport("org.checkerframework.checker.nullness.qual.Nullable");
-                    /* emit modified source code. we emit it under src so getWarnings works */
-                    var newPath = tempDir
-                            .resolve("src")
-                            .resolve(speciminOutDir.relativize(cu.getStorage().get().getPath()));
-                    /* this ensures we create any necessary parent directories */
-                    Files.createDirectories(newPath.getParent());
-                    Files.write(newPath, cu.toString().getBytes());
-                }
+                /* TODO: Nullable should not be hard-coded */
+                SearchAlgorithm searchAlgorithm = new AnnotateOneLocation(annotatableLocationCount, "Nullable");
 
                 /*
-                 * NOTE: if the number of warnings is zero, we can probably? stop early.
-                 * we might want to keep track of all ideal situations for merging later though
+                 * get the specimin output into src so we can use getWarning on it. this is kind of a hack;
+                 * ideally this is not necessary
                  */
-                System.out.println(speciminOutDir
-                        + " -> " + tempDir
-                        + " warning count: original: " + originalWarningCount
-                        + " new: " + getWarnings(checker, tempDir).size());
+                var temp = Files.createTempDirectory(dst, "specimin-moving-to-src");
+                Files.createSymbolicLink(temp.resolve("src"), speciminOutDir);
+                var originalWarningCount = getWarnings(checker, temp).size();
+
+                System.out.println("annotatable locations: " + annotatableLocationCount);
+
+                while (!searchAlgorithm.exhausted()) {
+                    var cus = compilationUnits.stream().map(CompilationUnit::clone).toList();
+                    var locations = AnnotatableLocationHelper.getLocations(cus);
+                    searchAlgorithm.annotate(locations);
+
+                    Path tempDir = Files.createTempDirectory(dst, "specimin-annotated");
+                    System.out.println(tempDir);
+
+                    for (CompilationUnit cu : cus) {
+                        /* TODO: we don't need to add this to every file, just any one we have changed */
+                        /* TODO: do not hardcode the annotation */
+                        cu.addImport("org.checkerframework.checker.nullness.qual.Nullable");
+                        /* emit modified source code. we emit it under src so getWarnings works */
+                        var newPath = tempDir
+                                .resolve("src")
+                                .resolve(speciminOutDir.relativize(cu.getStorage().get().getPath()));
+                        var parent = newPath.getParent();
+                        if (parent == null) {
+                            System.out.println(newPath + " has no parent directory?");
+                            return;
+                        }
+                        /* this ensures we create any necessary parent directories */
+                        Files.createDirectories(parent);
+                        Files.write(newPath, cu.toString().getBytes());
+                    }
+
+                    /*
+                     * NOTE: if the number of warnings is zero, we can probably? stop early.
+                     * we might want to keep track of all ideal situations for merging later though
+                     */
+                    System.out.println(speciminOutDir
+                            + " -> " + tempDir
+                            + " warning count: original: " + originalWarningCount
+                            + " new: " + getWarnings(checker, tempDir).size());
+                }
             }
         }
     }
@@ -318,7 +325,7 @@ public class App {
             if (args.length == 4) {
                 localAnnotate(args[1], Path.of(args[2]), Path.of(args[3]));
             } else {
-                System.out.println("three arguments expected for localannotate subcommand: checker, directory containing specimin outputs");
+                System.out.println("three arguments expected for localannotate subcommand: checker, directory containing specimin outputs, out directory");
             }
         }
     }

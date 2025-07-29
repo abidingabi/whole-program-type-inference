@@ -31,6 +31,7 @@ public class AnnotatableLocationHelper {
 
         return results;
     }
+
     /*
      * locate all locations where we should annotate types in a given compilation unit
      *
@@ -65,10 +66,11 @@ public class AnnotatableLocationHelper {
     }
 
     static List<CompilationUnit> getCompilationUnits(Path baseDirectory) throws IOException {
-        var paths = Files
-                .walk(baseDirectory)
-                .filter(Files::isRegularFile)
-                .toList();
+        List<Path> paths;
+        try (var files = Files
+                .walk(baseDirectory)) {
+            paths = files.filter(Files::isRegularFile).toList();
+        }
         var results = new ArrayList<CompilationUnit>();
         for (var path : paths) {
             results.add(StaticJavaParser.parse(path));

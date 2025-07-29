@@ -42,24 +42,10 @@ java {
 
 checkerFramework {
     checkers = [
-//            'org.checkerframework.checker.calledmethods.CalledMethodsChecker',
-//            'org.checkerframework.checker.compilermsgs.CompilerMessagesChecker',
-//            'org.checkerframework.checker.fenum.FenumChecker',
-//            'org.checkerframework.checker.formatter.FormatterChecker',
-//            'org.checkerframework.checker.index.IndexChecker',
-//            'org.checkerframework.checker.interning.InterningChecker',
-//            'org.checkerframework.checker.mustcall.MustCallChecker',
-//            'org.checkerframework.checker.mustcall.MustCallNoCreatesMustCallForChecker',
-//            'org.checkerframework.checker.nonempty.NonEmptyChecker',
-//            'org.checkerframework.checker.nullness.NullnessChecker',
-//            'org.checkerframework.checker.optional.OptionalChecker',
-//            'org.checkerframework.checker.optional.OptionalImplChecker',
-//            'org.checkerframework.checker.propkey.PropertyKeyChecker',
-//            'org.checkerframework.checker.regex.RegexChecker',
             // most useful, still slow
-            // 'org.checkerframework.checker.resourceleak.ResourceLeakChecker',
-            // 'org.checkerframework.checker.signature.SignatureChecker',
-            // 'org.checkerframework.checker.signedness.SignednessChecker',
+             'org.checkerframework.checker.nullness.NullnessChecker',
+             'org.checkerframework.checker.resourceleak.ResourceLeakChecker',
+             'org.checkerframework.checker.index.IndexChecker',
     ]
 }
 apply plugin: 'org.checkerframework'
