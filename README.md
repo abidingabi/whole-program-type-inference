@@ -1,5 +1,12 @@
 # Whole Program Type Inference
 
-run this with `./gradlew run checker proj`. We make the assumption that proj 
-is formatted like the code in njr-1 in terms of libraries and that it does not
-have a trailing slash. This is what happens when you try and run an experiment.
+We have subcommands:
+
+./gradlew run specimin checker project specimin-out,
+which runs specimin on every warning for a given checker on project and stores 
+the results in specimin-out. We assume project is formatted like an NJR-1
+project.
+
+
+./gradlew localannotate checker specimin-out destination,
+which attempts to locally annotate each specimin output to minimize warnings.
