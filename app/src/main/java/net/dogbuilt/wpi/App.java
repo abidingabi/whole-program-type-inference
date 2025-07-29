@@ -1,6 +1,10 @@
 package net.dogbuilt.wpi;
 
+import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
+import net.dogbuilt.wpi.searchalgorithms.AnnotateOneLocation;
+import net.dogbuilt.wpi.searchalgorithms.BreadthFirstSearch;
+import net.dogbuilt.wpi.searchalgorithms.SearchAlgorithm;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.*;
@@ -171,7 +175,7 @@ public class App {
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }).toList();
     }
 
     private static void localAnnotate(Path getErrorLinesPath,
