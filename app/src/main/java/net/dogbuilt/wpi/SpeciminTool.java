@@ -68,11 +68,8 @@ public final class SpeciminTool {
      * @throws IOException          If there's an error executing the command or writing the minimized file.
      * @throws InterruptedException If the process execution is interrupted.
      */
-    public static String runSpeciminTool(String root, String classPath, String targetFile, String target, SpeciminTargetType type)
+    public static String runSpeciminTool(Path javaPath, Path speciminPath, String root, String classPath, String targetFile, String target, SpeciminTargetType type)
             throws IOException, InterruptedException {
-
-        /* TODO: make this not hard-coded */
-        String speciminPath = "/home/abi/school/kellogg-research/specimin";
 
         Path tempDir;
         try {
@@ -87,7 +84,7 @@ public final class SpeciminTool {
 
         List<String> argsWithOption = formatSpeciminArgs(tempDir.toString(), classPath, root, targetFile, target, type);
 
-        List<String> commands = prepareCommands(speciminPath, argsWithOption);
+        List<String> commands = prepareCommands(javaPath, speciminPath, argsWithOption);
 
         startSpeciminProcess(commands, speciminPath);
 
@@ -122,10 +119,9 @@ public final class SpeciminTool {
      * @param argsWithOption Formatted arguments string.
      * @return List of commands for execution.
      */
-    private static List<String> prepareCommands(String speciminPath, List<String> argsWithOption) {
+    private static List<String> prepareCommands(Path javaPath, Path speciminPath, List<String> argsWithOption) {
         List<String> commands = new ArrayList<>();
-        /* TODO: you know why this is a problem (make the path configurable) */
-        commands.add("/home/abi/.nix-profile/bin/java");
+        commands.add(javaPath.toString());
         commands.add("-jar");
         commands.add(speciminPath + "/build/libs/specimin.jar");
         commands.addAll(argsWithOption);
@@ -134,20 +130,20 @@ public final class SpeciminTool {
 
 
     /**
-     * // TODO: Specimin path should change to using a jar once we are ready Starts the Specimin
-     * process with the given commands and path to the Specimin project.
+     * TODO: Specimin path should change to using a jar once we are ready
+     * Starts the Specimin process with the given commands and path to the Specimin project.
      *
      * @param commands     List of commands to be executed.
-     * @param speciminPath Path to the Specimin tool project. // TODO: This may be changed to a jar
+     * @param speciminPath Path to the Specimin tool project.
      *                     once we are ready
      * @throws IOException          If there's an error executing the command or reading the output.
      * @throws InterruptedException If the process execution is interrupted.
      */
-    private static void startSpeciminProcess(List<String> commands, String speciminPath)
+    private static void startSpeciminProcess(List<String> commands, Path speciminPath)
             throws IOException, InterruptedException {
         ProcessBuilder builder = new ProcessBuilder(commands);
         builder.redirectErrorStream(true);
-        builder.directory(new File(speciminPath));
+        builder.directory(new File(speciminPath.toString()));
 
         Process process;
         try {
@@ -159,59 +155,6 @@ public final class SpeciminTool {
 
         logProcessOutput(process);
         finalizeProcess(process);
-    }
-
-    /**
-     * Attempts to compile all Java files in the directory specified by the path.
-     *
-     * @param directoryPath the path to the directory containing minimized Java file(s) as a {@code
-     *                      String}
-     * @return true if all files were compiled successfully, false otherwise
-     * @throws IOException          if there's an error executing the command or reading the output
-     * @throws InterruptedException if the process execution is interrupted
-     */
-    public static boolean compileMinimizedFiles(String directoryPath)
-            throws IOException, InterruptedException {
-
-        Path dir = Paths.get(directoryPath);
-        if (!Files.exists(dir)) {
-            return false;
-        }
-        if (!Files.isDirectory(dir)) {
-            return false;
-        }
-
-        List<File> javaFiles = findAllJavaFilesInMinimizedDir(dir);
-        if (javaFiles.isEmpty()) {
-            return false;
-        }
-
-        List<String> command = new ArrayList<>();
-        /* TODO: make this not hardcoded */
-        command.add("/home/abi/school/kellogg-research/checker-framework-3.49.1/checker/bin/javac");
-
-        StringBuilder commandLog = new StringBuilder();
-        commandLog.append("Compiling Java files:").append(System.lineSeparator());
-        commandLog.append("javac");
-
-        for (File javaFile : javaFiles) {
-            command.add(javaFile.getPath());
-            commandLog.append(" ").append(javaFile.getPath());
-        }
-
-        ProcessBuilder builder = new ProcessBuilder(command);
-        builder.redirectErrorStream(true);
-        Process process = builder.start();
-        logProcessOutput(process);
-
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            return false;
-        }
-
-        finalizeProcess(process);
-
-        return true;
     }
 
     /**

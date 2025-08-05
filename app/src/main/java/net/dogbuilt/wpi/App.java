@@ -10,6 +10,7 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Path;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,9 +25,9 @@ public class App {
         return "Hello World!";
     }
 
-    private static List<Warning> getWarnings(String checker, String path) {
+    private static List<Warning> getWarnings(Path getErrorLinesPath, String checker, String path) {
 
-        String[] errorLines = {"/home/abi/school/kellogg-research/whole-program-type-inference/get-error-lines.sh", checker, path};
+        String[] errorLines = {getErrorLinesPath.toString(), checker, path};
         ProcessBuilder errorLinesPB = new ProcessBuilder(errorLines);
 
         var warnings = new ArrayList<Warning>();
@@ -56,16 +57,28 @@ public class App {
         return warnings;
     }
 
+    private static Path readEnvironmentVariable(String name) {
+        var pathString = System.getenv(name);
+        if (pathString == null) {
+            throw new RuntimeException(name + " environment variable must be set.");
+        }
+        return Path.of(pathString);
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException {
         if (args.length < 2) {
             System.out.println("two arguments expected: checker, project directory");
             return;
         }
 
+        var javaPath = readEnvironmentVariable("JAVA_PATH");
+        var speciminPath = readEnvironmentVariable("SPECIMIN_PATH");
+        var getErrorLinesPath = Path.of("../../get-error-lines.sh");
+
         var src = args[1] + "/src/";
 
         /* to check the warnings, we care about the lib directory; hence us not using src */
-        var warnings = getWarnings(args[0], args[1]);
+        var warnings = getWarnings(getErrorLinesPath, args[0], args[1]);
         System.out.println(warnings.size());
 
         // locations to run specimin on
@@ -130,6 +143,8 @@ public class App {
             System.out.println(target);
             try {
                 return Optional.of(SpeciminTool.runSpeciminTool(
+                        javaPath,
+                        speciminPath,
                         src,
                         args[1] + "/lib/",
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
@@ -165,6 +180,8 @@ public class App {
             System.out.println(target);
             try {
                 return Optional.of(SpeciminTool.runSpeciminTool(
+                        javaPath,
+                        speciminPath,
                         src,
                         args[1] + "/lib/",
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
