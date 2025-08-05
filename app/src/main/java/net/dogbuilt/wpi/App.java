@@ -67,8 +67,9 @@ public class App {
             return;
         }
 
-        var javaPath = readEnvironmentVariable("JAVA_PATH");
-        var speciminPath = readEnvironmentVariable("SPECIMIN_PATH");
+        var javaHome = readEnvironmentVariable("JAVA_HOME");
+        var javaPath = javaHome.resolve("bin/java");
+        var speciminPath = readEnvironmentVariable("SPECIMIN");
         var getErrorLinesPath = Path.of("../../get-error-lines.sh");
 
         var src = args[1] + "/src/";
