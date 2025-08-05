@@ -83,7 +83,7 @@ public class App {
                 .collect(Collectors.toMap(
                         AbstractMap.SimpleEntry::getKey,
                         AbstractMap.SimpleEntry::getValue,
-                        /* since specimin is fairly coarse, we can ignore multiple warnings in the same field */
+                        /* since specimin is fairly coarse, we can ignore multiple warnings in the same method */
                         (a, b) -> a));
 
         var fields = warnings
