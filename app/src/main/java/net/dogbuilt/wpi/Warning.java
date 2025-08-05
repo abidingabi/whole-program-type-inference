@@ -6,55 +6,62 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.Optional;
 
 public record Warning(String file, int line) {
     /* TODO: this is almost certainly the wrong place for this */
-    Optional<MethodDeclaration> getEnclosingMethod() throws FileNotFoundException {
+    @Nullable MethodDeclaration getEnclosingMethod() throws FileNotFoundException {
         return StaticJavaParser.parse(new File(file))
                 .findAll(MethodDeclaration.class)
                 .stream()
                 .filter(declaration -> declaration.getBegin().map(b -> b.line <= line).orElse(false))
                 .filter(declaration -> declaration.getEnd().map(e -> e.line >= line).orElse(false))
-                .findAny();
+                .findAny()
+                .orElse(null);
     }
 
-    Optional<FieldDeclaration> getEnclosingField() throws FileNotFoundException {
+    @Nullable FieldDeclaration getEnclosingField() throws FileNotFoundException {
         return StaticJavaParser.parse(new File(file)).
                 findAll(FieldDeclaration.class)
                 .stream()
                 .filter(declaration -> declaration.getBegin().map(b -> b.line <= line).orElse(false))
                 .filter(declaration -> declaration.getEnd().map(e -> e.line >= line).orElse(false))
-                .findAny();
+                .findAny()
+                .orElse(null);
     }
 
     /* TODO: this is needlessly slow.... */
-    Optional<String> getFullyQualifiedClassName() throws FileNotFoundException {
+    @Nullable String getFullyQualifiedClassName() throws FileNotFoundException {
         var packageDeclaration = StaticJavaParser.parse(new File(file)).getPackageDeclaration();
         if (packageDeclaration.isEmpty())
-            return Optional.empty();
+            return null;
 
         var enclosingMethod = getEnclosingMethod();
         Node enclosing;
-        if (enclosingMethod.isPresent()) {
-            enclosing = enclosingMethod.get();
+        if (enclosingMethod != null) {
+            enclosing = enclosingMethod;
         } else {
             var enclosingField = getEnclosingField();
-            if (enclosingField.isPresent()) {
-                enclosing = enclosingField.get();
+            if (enclosingField != null) {
+                enclosing = enclosingField;
             } else {
-                return Optional.empty();
+                return null;
             }
         }
 
         // TODO: this isn't correct; consider the case of an enum inside of a class
-        var enclosingClass = enclosing.findAncestor(ClassOrInterfaceDeclaration.class);
-        var enclosingEnum = enclosing.findAncestor(EnumDeclaration.class);
+        var enclosingClass = enclosing.findAncestor(ClassOrInterfaceDeclaration.class).orElse(null);
+        var enclosingEnum = enclosing.findAncestor(EnumDeclaration.class).orElse(null);
 
-        return enclosingClass.flatMap(ClassOrInterfaceDeclaration::getFullyQualifiedName).or(
-                () -> enclosingEnum.flatMap(EnumDeclaration::getFullyQualifiedName));
+        if (enclosingClass != null) {
+            return enclosingClass.getFullyQualifiedName().orElse(null);
+        }
+        if (enclosingEnum != null) {
+            return enclosingEnum.getFullyQualifiedName().orElse(null);
+        }
+        return null;
     }
 }

@@ -1,23 +1,11 @@
 package net.dogbuilt.wpi;
 
-import com.github.javaparser.StaticJavaParser;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.FieldDeclaration;
-import com.github.javaparser.ast.body.Parameter;
-import com.github.javaparser.ast.type.Type;
-
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class App {
@@ -87,12 +75,15 @@ public class App {
                 .stream()
                 .map(w -> {
                     try {
-                        return w.getEnclosingMethod().map(m -> new AbstractMap.SimpleEntry<>(m, w));
+                        var method = w.getEnclosingMethod();
+                        if (method == null)
+                            return null;
+                        return new AbstractMap.SimpleEntry<>(method, w);
                     } catch (FileNotFoundException e) {
                         throw new RuntimeException(e);
                     }
                 })
-                .flatMap(Optional::stream)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toMap(
                         AbstractMap.SimpleEntry::getKey,
                         AbstractMap.SimpleEntry::getValue,
@@ -103,12 +94,15 @@ public class App {
                 .stream()
                 .map(w -> {
                     try {
-                        return w.getEnclosingField().map(f -> new AbstractMap.SimpleEntry<>(f, w));
+                        var field = w.getEnclosingField();
+                        if (field == null)
+                            return null;
+                        return new AbstractMap.SimpleEntry<>(field, w);
                     } catch (FileNotFoundException e) {
                         throw new RuntimeException(e);
                     }
                 })
-                .flatMap(Optional::stream)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toMap(
                         AbstractMap.SimpleEntry::getKey,
                         AbstractMap.SimpleEntry::getValue,
@@ -125,20 +119,20 @@ public class App {
                     .map(p -> p.getTypeAsString() + (p.isVarArgs() ? "..." : ""))
                     .collect(Collectors.joining(", "));
 
-            Optional<String> fullyQualifiedClassName;
+            String fullyQualifiedClassName;
             try {
                 fullyQualifiedClassName = warning.getFullyQualifiedClassName();
             } catch (FileNotFoundException e) {
                 throw new RuntimeException(e);
             }
 
-            if (fullyQualifiedClassName.isEmpty()) {
+            if (fullyQualifiedClassName == null) {
                 System.out.println(warning);
                 System.out.println("Could not find FQCN?");
                 return Optional.<String>empty();
             }
 
-            var target = fullyQualifiedClassName.get() + "#" + method.getName() + "(" + parameterTypes + ")";
+            var target = fullyQualifiedClassName + "#" + method.getName() + "(" + parameterTypes + ")";
 
             System.out.println(target);
             try {
@@ -159,14 +153,14 @@ public class App {
         List<Optional<String>> speciminFieldOutDirs = fields.keySet().stream().map(field -> {
             var warning = fields.get(field);
 
-            Optional<String> fullyQualifiedClassName = null;
+            String fullyQualifiedClassName;
             try {
                 fullyQualifiedClassName = warning.getFullyQualifiedClassName();
             } catch (FileNotFoundException e) {
                 throw new RuntimeException(e);
             }
 
-            if (fullyQualifiedClassName.isEmpty()) {
+            if (fullyQualifiedClassName == null) {
                 System.out.println(warning);
                 System.out.println("Could not find FQCN?");
                 return Optional.<String>empty();
@@ -175,7 +169,7 @@ public class App {
             /* TODO: we make an assumption here that the warning is on the initializer for the first variable in a
              *  declaration. Unfortunately, with just the line number from javac, this is nontrivial to do correctly.
              */
-            var target = fullyQualifiedClassName.get() + "#" + field.getVariable(0).getName();
+            var target = fullyQualifiedClassName + "#" + field.getVariable(0).getName();
 
             System.out.println(target);
             try {
