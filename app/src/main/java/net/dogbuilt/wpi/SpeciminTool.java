@@ -9,6 +9,7 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -21,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -183,14 +183,14 @@ public final class SpeciminTool {
 
             var methods = cu.findAll(MethodDeclaration.class);
             for (var method : methods) {
-                Optional<ClassOrInterfaceDeclaration> enclosing =
-                        method.findAncestor(ClassOrInterfaceDeclaration.class);
+                @Nullable ClassOrInterfaceDeclaration enclosing =
+                        method.findAncestor(ClassOrInterfaceDeclaration.class).orElse(null);
 
-                if (enclosing.isEmpty())
+                if (enclosing == null)
                     continue;
 
-                var fullyQualifiedClassName = enclosing.get().getFullyQualifiedName();
-                if (fullyQualifiedClassName.isEmpty())
+                var fullyQualifiedClassName = enclosing.getFullyQualifiedName().orElse(null);
+                if (fullyQualifiedClassName == null)
                     continue;
 
                 var parameterTypes = method
@@ -198,22 +198,22 @@ public final class SpeciminTool {
                         .stream()
                         .map(p -> p.getTypeAsString() + (p.isVarArgs() ? "..." : ""))
                         .collect(Collectors.joining(", "));
-                output.add(fullyQualifiedClassName.get() + "#" + method.getName() + "(" + parameterTypes + ")");
+                output.add(fullyQualifiedClassName + "#" + method.getName() + "(" + parameterTypes + ")");
             }
 
             var fields = cu.findAll(FieldDeclaration.class);
             for (var field : fields) {
-                Optional<ClassOrInterfaceDeclaration> enclosing =
-                        field.findAncestor(ClassOrInterfaceDeclaration.class);
+                @Nullable ClassOrInterfaceDeclaration enclosing =
+                        field.findAncestor(ClassOrInterfaceDeclaration.class).orElse(null);
 
-                if (enclosing.isEmpty())
+                if (enclosing == null)
                     continue;
 
-                var fullyQualifiedClassName = enclosing.get().getFullyQualifiedName();
-                if (fullyQualifiedClassName.isEmpty())
+                var fullyQualifiedClassName = enclosing.getFullyQualifiedName().orElse(null);
+                if (fullyQualifiedClassName == null)
                     continue;
 
-                output.add(fullyQualifiedClassName.get() + "#" + field.getVariable(0).getName());
+                output.add(fullyQualifiedClassName + "#" + field.getVariable(0).getName());
             }
         }
 

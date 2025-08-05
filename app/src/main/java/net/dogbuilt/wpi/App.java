@@ -1,5 +1,7 @@
 package net.dogbuilt.wpi;
 
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -11,7 +13,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -117,7 +118,7 @@ public class App {
                         (a, b) -> a));
 
         /* TODO: deal with warnings not at specimin-able locations */
-        List<Optional<String>> speciminMethodOutDirs = methods.keySet().stream().map(method -> {
+        List<@Nullable String> speciminMethodOutDirs = methods.keySet().stream().map(method -> {
             var warning = methods.get(method);
             // TODO: this is duplicated in specimin tool. this is bad
             var parameterTypes = method
@@ -136,14 +137,14 @@ public class App {
             if (fullyQualifiedClassName == null) {
                 System.out.println(warning);
                 System.out.println("Could not find FQCN?");
-                return Optional.<String>empty();
+                return null;
             }
 
             var target = fullyQualifiedClassName + "#" + method.getName() + "(" + parameterTypes + ")";
 
             System.out.println(target);
             try {
-                return Optional.of(SpeciminTool.runSpeciminTool(
+                return SpeciminTool.runSpeciminTool(
                         javaPath,
                         speciminPath,
                         src,
@@ -151,13 +152,13 @@ public class App {
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
                         warning.file().substring(src.length()),
                         target,
-                        SpeciminTool.SpeciminTargetType.METHOD));
+                        SpeciminTool.SpeciminTargetType.METHOD);
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }).toList();
 
-        List<Optional<String>> speciminFieldOutDirs = fields.keySet().stream().map(field -> {
+        List<@Nullable String> speciminFieldOutDirs = fields.keySet().stream().map(field -> {
             var warning = fields.get(field);
 
             String fullyQualifiedClassName;
@@ -170,7 +171,7 @@ public class App {
             if (fullyQualifiedClassName == null) {
                 System.out.println(warning);
                 System.out.println("Could not find FQCN?");
-                return Optional.<String>empty();
+                return null;
             }
 
             /* TODO: we make an assumption here that the warning is on the initializer for the first variable in a
@@ -180,7 +181,7 @@ public class App {
 
             System.out.println(target);
             try {
-                return Optional.of(SpeciminTool.runSpeciminTool(
+                return SpeciminTool.runSpeciminTool(
                         javaPath,
                         speciminPath,
                         src,
@@ -188,17 +189,21 @@ public class App {
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
                         warning.file().substring(src.length()),
                         target,
-                        SpeciminTool.SpeciminTargetType.FIELD));
+                        SpeciminTool.SpeciminTargetType.FIELD);
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }).toList();
 
         var speciminOutDirs = new ArrayList<String>();
-        for (var methodDir : speciminMethodOutDirs)
-            methodDir.ifPresent(speciminOutDirs::add);
-        for (var fieldDir : speciminFieldOutDirs)
-            fieldDir.ifPresent(speciminOutDirs::add);
+        for (var methodDir : speciminMethodOutDirs) {
+            if (methodDir != null)
+                speciminOutDirs.add(methodDir);
+        }
+        for (var fieldDir : speciminFieldOutDirs) {
+            if (fieldDir != null)
+                speciminOutDirs.add(fieldDir);
+        }
 
         var fieldsAndMethodsForDirs = speciminOutDirs.stream().map(directoryPath -> {
             try {
