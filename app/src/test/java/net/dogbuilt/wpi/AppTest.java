@@ -4,9 +4,8 @@
 package net.dogbuilt.wpi;
 
 import org.junit.jupiter.api.Test;
-import net.dogbuilt.wpi.App;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class AppTest {
     @Test void appHasAGreeting() {
