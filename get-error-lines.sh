@@ -4,8 +4,8 @@
 # TODO: distinguish between javac and checker framework errors; bail on javac errors
 
 if [ -z "$CHECKERFRAMEWORK" ]; then
-    echo "CHECKER_FRAMEWORK environment variable must be set."
-    exit
+    echo "CHECKERFRAMEWORK environment variable must be set."
+    exit 1
 fi
 
 shopt -s globstar

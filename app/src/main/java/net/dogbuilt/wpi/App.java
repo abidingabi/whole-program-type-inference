@@ -1,9 +1,7 @@
 package net.dogbuilt.wpi;
 
-import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import net.dogbuilt.wpi.searchalgorithms.AnnotateOneLocation;
-import net.dogbuilt.wpi.searchalgorithms.BreadthFirstSearch;
 import net.dogbuilt.wpi.searchalgorithms.SearchAlgorithm;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -14,12 +12,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class App {
-    public String getGreeting() {
-        return "Hello World!";
-    }
-
     private static List<Warning> getWarnings(Path getErrorLinesPath, String checker, Path path) {
-
         String[] errorLines = {getErrorLinesPath.toString(), checker, path.toString()};
         ProcessBuilder errorLinesPB = new ProcessBuilder(errorLines);
 
@@ -122,18 +115,16 @@ public class App {
             }
 
             var target = fullyQualifiedClassName + "#" + method.getName() + "(" + parameterTypes + ")";
-
-            System.out.println(target);
             try {
                 return SpeciminTool.runSpeciminTool(
                         javaPath,
                         speciminPath,
                         src.toString(),
                         projectDirectory.resolve("lib/").toString(),
-                        // TODO: this is really janky and breaks when the argument has a trailing slash.
-                        warning.file().relativize(src).toString(),
+                        src.relativize(warning.file()).toString(),
                         target,
-                        SpeciminTool.SpeciminTargetType.METHOD);
+                        SpeciminTool.SpeciminTargetType.METHOD,
+                        dst);
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -170,7 +161,8 @@ public class App {
                         // TODO: this is really janky and breaks when the argument has a trailing slash.
                         warning.file().relativize(src).toString(),
                         target,
-                        SpeciminTool.SpeciminTargetType.FIELD
+                        SpeciminTool.SpeciminTargetType.FIELD,
+                        dst
                         );
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
@@ -233,12 +225,16 @@ public class App {
         }
     }
 
-    private static Path readEnvironmentVariable(String name) {
+    private static Path getCanonicalPath(Path path) throws IOException {
+        return Path.of(new File(path.toString()).getCanonicalPath());
+    }
+
+    private static Path readEnvironmentVariable(String name) throws IOException {
         var pathString = System.getenv(name);
         if (pathString == null) {
             throw new RuntimeException(name + " environment variable must be set.");
         }
-        return Path.of(pathString);
+        return getCanonicalPath(Path.of(pathString));
     }
 
     public static void main(String[] args) throws IOException {
@@ -250,22 +246,27 @@ public class App {
         var javaHome = readEnvironmentVariable("JAVA_HOME");
         var javaPath = javaHome.resolve("bin/java");
         var speciminPath = readEnvironmentVariable("SPECIMIN");
-        var getErrorLinesPath = Path.of("../../get-error-lines.sh");
+        var getErrorLinesPath = getCanonicalPath(Path.of("../get-error-lines.sh"));
+
+        /* we do this to ensure that the variable exists; get-error-lines.sh uses it */
+        readEnvironmentVariable("CHECKERFRAMEWORK");
 
         if (args[0].equals("specimin")) {
             if (args.length == 4) {
-                specimin(javaPath, speciminPath, getErrorLinesPath, args[1], Path.of(args[2]), Path.of(args[3]));
+                specimin(javaPath, speciminPath, getErrorLinesPath,
+                        args[1], getCanonicalPath(Path.of(args[2])), getCanonicalPath(Path.of(args[3])));
             } else {
                 System.out.println("three arguments expected for specimin subcommand: checker, project directory, out directory");
             }
-        }
-
-        if (args[0].equals("localannotate")) {
+        } else if (args[0].equals("localannotate")) {
             if (args.length == 4) {
-                localAnnotate(speciminPath, args[1], Path.of(args[2]), Path.of(args[3]));
+                localAnnotate(speciminPath, args[1], getCanonicalPath(Path.of(args[2])), getCanonicalPath(Path.of(args[3])));
             } else {
                 System.out.println("three arguments expected for localannotate subcommand: checker, directory containing specimin outputs");
             }
+        } else {
+            System.out.println("Invalid subcommand!");
+            System.exit(1);
         }
     }
 }

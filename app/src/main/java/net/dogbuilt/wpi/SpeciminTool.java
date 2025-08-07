@@ -68,12 +68,14 @@ public final class SpeciminTool {
      * @throws IOException          If there's an error executing the command or writing the minimized file.
      * @throws InterruptedException If the process execution is interrupted.
      */
-    public static String runSpeciminTool(Path javaPath, Path speciminPath, String root, String classPath, String targetFile, String target, SpeciminTargetType type)
+    public static String runSpeciminTool(Path javaPath, Path speciminPath,
+                                         String root, String classPath, String targetFile, String target,
+                                         SpeciminTargetType type, Path dst)
             throws IOException, InterruptedException {
 
         Path tempDir;
         try {
-            tempDir = Files.createTempDirectory("specimin");
+            tempDir = Files.createTempDirectory(dst, "specimin");
         } catch (IOException e) {
             String errorMessage = "Failed to create temporary directory";
             throw new IOException(errorMessage, e);
@@ -130,7 +132,6 @@ public final class SpeciminTool {
 
 
     /**
-     * TODO: Specimin path should change to using a jar once we are ready
      * Starts the Specimin process with the given commands and path to the Specimin project.
      *
      * @param commands     List of commands to be executed.
@@ -242,10 +243,6 @@ public final class SpeciminTool {
             String errorMessage = "Failed to read output from Specimin process";
             throw new IOException(errorMessage, e);
         }
-
-        // Prepend the output with a header
-        output.insert(0, System.lineSeparator() + "Specimin output:" + System.lineSeparator());
-        System.out.println(output);
     }
 
     /**
