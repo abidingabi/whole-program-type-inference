@@ -5,11 +5,20 @@ import net.dogbuilt.wpi.searchalgorithms.AnnotateOneLocation;
 import net.dogbuilt.wpi.searchalgorithms.SearchAlgorithm;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class App {
     private static List<Warning> getWarnings(Path getErrorLinesPath, String checker, Path path) {
@@ -189,6 +198,12 @@ public class App {
             var temp = Files.createTempDirectory(dst, "specimin-moving-to-src");
             Files.createSymbolicLink(temp.resolve("src"), speciminOutDir);
             var originalWarningCount = getWarnings(getErrorLinesPath, checker, temp).size();
+            /* clean up after ourselves */
+            try (Stream<Path> pathStream = Files.walk(temp)) {
+                pathStream.sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+            }
 
             System.out.println("annotatable locations: " + annotatableLocationCount);
 
@@ -213,14 +228,25 @@ public class App {
                     Files.write(newPath, cu.toString().getBytes());
                 }
 
-                /*
-                 * NOTE: if the number of warnings is zero, we can probably? stop early.
-                 * we might want to keep track of all ideal situations for merging later though
-                 */
+                var newWarningCount = getWarnings(getErrorLinesPath, checker, tempDir).size();
                 System.out.println(speciminOutDir
                         + " -> " + tempDir
                         + " warning count: original: " + originalWarningCount
-                        + " new: " + getWarnings(getErrorLinesPath, checker, tempDir).size());
+                        + " new: " + newWarningCount);
+                /*
+                 * NOTE: if the number of warnings is zero, we can probably? stop early.
+                 * we might want to keep track of all ideal situations for unification later though
+                 */
+                if (newWarningCount == 0) {
+                    break;
+                } else {
+                    /* only keep succesful annotation sets */
+                    try (Stream<Path> pathStream = Files.walk(tempDir)) {
+                        pathStream.sorted(Comparator.reverseOrder())
+                                .map(Path::toFile)
+                                .forEach(File::delete);
+                    }
+                }
             }
         }
     }
@@ -260,7 +286,7 @@ public class App {
             }
         } else if (args[0].equals("localannotate")) {
             if (args.length == 4) {
-                localAnnotate(speciminPath, args[1], getCanonicalPath(Path.of(args[2])), getCanonicalPath(Path.of(args[3])));
+                localAnnotate(getErrorLinesPath, args[1], getCanonicalPath(Path.of(args[2])), getCanonicalPath(Path.of(args[3])));
             } else {
                 System.out.println("three arguments expected for localannotate subcommand: checker, directory containing specimin outputs");
             }
